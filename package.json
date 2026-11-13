@@ -1,0 +1,11 @@
+{
+  "name": "mapleweb-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.162.0"
+  }
+}
