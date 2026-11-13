@@ -2,8 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mapleweb-ai",
   "compatibility_date": "2026-11-13",
+  "workers_dev": true,
   "assets": {
-    "directory": "./",
+    "directory": "./public",
     "not_found_handling": "404-page"
   }
 }
