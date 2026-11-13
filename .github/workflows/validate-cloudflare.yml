@@ -1,0 +1,22 @@
+name: Validate Cloudflare deployment
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        run: npm install --no-audit --no-fund
+      - name: Verify static site and config
+        run: |
+          test -s public/index.html
+          test -s wrangler.jsonc
+          node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(c.assets?.directory!=='./public') process.exit(1)"
+      - name: Validate Worker bundle without publishing
+        run: npx wrangler deploy --dry-run --outdir ./dist
