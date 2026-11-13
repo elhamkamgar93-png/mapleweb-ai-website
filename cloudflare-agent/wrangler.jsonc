@@ -1,0 +1,8 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "mapleweb-publishing-agent",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-13",
+  "workers_dev": true,
+  "triggers": { "crons": ["0 * * * *"] }
+}
