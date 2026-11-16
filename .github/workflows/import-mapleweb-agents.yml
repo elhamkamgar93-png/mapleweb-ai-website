@@ -1,0 +1,80 @@
+name: Import and verify MapleWeb agents (development only)
+
+on:
+  push:
+    branches: [mapleweb-ai-agents]
+    paths: [mapleweb-agents-source.zip]
+  workflow_dispatch:
+
+# This workflow only changes the development branch. No Cloudflare or production deploy.
+permissions:
+  contents: write
+
+jobs:
+  import-and-test:
+    if: github.ref == 'refs/heads/mapleweb-ai-agents'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: mapleweb-ai-agents
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check and extract agent source ZIP
+        run: |
+          python3 - <<'PYCODE'
+          from zipfile import ZipFile
+          from pathlib import Path
+          import stat
+          with ZipFile('mapleweb-agents-source.zip') as z:
+              members = z.infolist()
+              if not 10 <= len(members) <= 150: raise ValueError('Unexpected archive size')
+              for f in members:
+                  name = f.filename
+                  p = Path(name)
+                  if p.is_absolute() or '..' in p.parts: raise ValueError('Unsafe path')
+                  if not name.startswith(('agents/', 'mapleweb-agent/')): raise ValueError('Unexpected path')
+                  if stat.S_ISLNK(f.external_attr >> 16): raise ValueError('Symlinks not allowed')
+                  if f.is_dir(): continue
+                  target = Path(name)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(z.read(f))
+          print('Source extracted. No production files touched.')
+          PYCODE
+      - name: Install locked dependencies
+        working-directory: mapleweb-agent
+        run: npm ci --no-audit --no-fund
+      - name: Build browser passkey script
+        working-directory: mapleweb-agent
+        run: npm run build:client
+      - name: Test Website Manager rules
+        run: node --test agents/manager/test/manager-core.test.mjs
+      - name: Run Developer source tests
+        working-directory: mapleweb-agent
+        run: npm test
+      - name: Build Worker without deploying
+        working-directory: mapleweb-agent
+        run: ./node_modules/.bin/esbuild src/worker.js --bundle --platform=browser --format=esm --target=es2022 --minify --outfile=deploy-phone/worker-bundle.js
+      - name: Test rebuilt Worker
+        working-directory: mapleweb-agent
+        run: npm run test:bundle
+      - name: Upload build for review only
+        uses: actions/upload-artifact@v4
+        with:
+          name: MapleWeb-M7-test-only-NOT-DEPLOYED
+          path: |
+            mapleweb-agent/deploy-phone/worker-bundle.js
+            mapleweb-agent/deploy-phone/schema-for-console.sql
+            mapleweb-agent/deploy-phone/PHONE-DEPLOY-GUIDE.md
+          retention-days: 7
+      - name: Save source on development branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add agents mapleweb-agent
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add tested MapleWeb Developer and Manager source'
+            git push origin HEAD:mapleweb-ai-agents
+          fi
